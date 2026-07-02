@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trackr</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+    body { margin: 0; }
+    .animate-spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/plain" id="app-source">
+const { useState, useEffect, useCallback } = React;
+
+/* ---------------------------------------------------------------
+   ICONOS — sustituyen a lucide-react (no disponible vía CDN sin
+   bundler). Mismos nombres/API que antes: <Plus size={16}/> etc.
+---------------------------------------------------------------- */
+function svgIcon(children, viewBox) {
+  return function IconCmp({ size = 16, color = "currentColor", className = "", style }) {
+    return (
+      <svg width={size} height={size} viewBox={viewBox || "0 0 24 24"} fill="none" stroke={color}
+           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+        {children}
+      </svg>
+    );
+  };
+}
+
+const LayoutDashboard = svgIcon(<><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></>);
+const FolderKanban = svgIcon(<><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M8 10v4"/><path d="M12 10v2"/><path d="M16 10v6"/></>);
+const Plus = svgIcon(<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>);
+const X = svgIcon(<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>);
+const ChevronRight = svgIcon(<polyline points="9 18 15 12 9 6"/>);
+const ChevronLeft = svgIcon(<polyline points="15 18 9 12 15 6"/>);
+const AlertTriangle = svgIcon(<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>);
+const Calendar = svgIcon(<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>);
+const Clock = svgIcon(<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>);
+const User = svgIcon(<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>);
+const Users = svgIcon(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>);
+const Target = svgIcon(<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>);
+const Bell = svgIcon(<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></>);
+const CheckCircle2 = svgIcon(<><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></>);
+const ArrowRight = svgIcon(<><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>);
+const Search = svgIcon(<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>);
+const FileText = svgIcon(<><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>);
+const LogOut = svgIcon(<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>);
+const Milestone = svgIcon(<><path d="M18 6H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h13l3-3.5L18 6Z"/><path d="M4 22V4"/></>);
+const ShieldAlert = svgIcon(<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>);
+const History = svgIcon(<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 16 14"/></>);
+const Pencil = svgIcon(<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>);
+const Loader2 = svgIcon(<path d="M21 12a9 9 0 1 1-6.219-8.56"/>);
+const Archive = svgIcon(<><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></>);
+const Share2 = svgIcon(<><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></>);
+const Trash2 = svgIcon(<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>);
+const ShieldCheck = svgIcon(<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></>);
+const Mail = svgIcon(<><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></>);
+const Lock = svgIcon(<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>);
+
+/* ---------------------------------------------------------------
+   TOKENS
+---------------------------------------------------------------- */
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');`;
+
+const COLORS = {
+  ink: "#14181F",
+  inkSoft: "#1F2530",
+  paper: "#F5F6F3",
+  paperCard: "#FFFFFF",
+  line: "#E4E5E1",
+  textDim: "#6B7280",
+  accent: "#4C4FD8",
+  accentSoft: "#EEEEFB",
+  green: "#2F9E64",
+  greenSoft: "#E6F5EC",
+  amber: "#DB8F1F",
+  amberSoft: "#FBF0DD",
+  red: "#D8483F",
+  redSoft: "#FBE6E4",
+};
+
+const SEMAFORO = {
+  green: { label: "Verde", color: COLORS.green, soft: COLORS.greenSoft },
+  amber: { label: "Ámbar", color: COLORS.amber, soft: COLORS.amberSoft },
+  red: { label: "Rojo", color: COLORS.red, soft: COLORS.redSoft },
+};
+
+const SEVERIDAD = {
+  Baja: { color: "#6B7280", soft: "#F1F2F0" },
+  Media: { color: COLORS.amber, soft: COLORS.amberSoft },
+  Alta: { color: "#C2410C", soft: "#FEEBDD" },
+  Crítica: { color: COLORS.red, soft: COLORS.redSoft },
+};
+
+const ESTADO_RIESGO = ["Abierto", "En seguimiento", "Mitigado", "Cerrado"];
+const ESTADO_FASE = ["Pendiente", "En curso", "Completada", "Bloqueada"];
+const PRIORIDADES = ["Alta", "Media", "Baja"];
+const ROLES = ["Admin", "Project Owner", "Stakeholder", "Viewer"];
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const fmtDate = (d) => {
+  if (!d) return "—";
+  const dt = new Date(d + "T00:00:00");
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+};
+const fmtDateTime = (d) => {
+  const dt = new Date(d);
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short" }) + " · " + dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+};
+const daysSince = (d) => {
+  if (!d) return null;
+  const dt = new Date(d + "T00:00:00");
+  return Math.floor((Date.now() - dt.getTime()) / 86400000);
+};
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+const SEED_PROJECTS = [
+  {
+    id: uid(), name: "Horizon", owner: "Marta Ruiz",
+    stakeholders: "Dirección de Producto, IT",
+    objective: "Modernizar la plataforma core y migrar a la nueva arquitectura de microservicios.",
+    currentStatus: "En fase de migración de servicios críticos. Pruebas de carga en curso.",
+    semaphore: "amber", priority: "Alta",
+    startDate: "2026-02-01", endDate: "2026-10-31", nextReview: "2026-07-09",
+    summary: "Migración a microservicios en curso; riesgo de retraso por dependencia de proveedor externo de infraestructura.",
+    archived: false, lastUpdateAt: "2026-06-25", sharedWith: "all",
+    phases: [
+      { id: uid(), name: "Discovery y arquitectura", description: "Definición de arquitectura objetivo", startDate: "2026-02-01", endDate: "2026-03-15", status: "Completada", owner: "Marta Ruiz", deliverables: "Documento de arquitectura, PoC", benefit: "Base técnica validada" },
+      { id: uid(), name: "Migración de servicios core", description: "Migrar los 6 servicios críticos", startDate: "2026-03-16", endDate: "2026-08-15", status: "En curso", owner: "Marta Ruiz", deliverables: "6 servicios migrados y en producción", benefit: "Reducción de tiempo de despliegue en un 60%" },
+      { id: uid(), name: "Estabilización", description: "Monitorización y ajuste post-migración", startDate: "2026-08-16", endDate: "2026-10-31", status: "Pendiente", owner: "Equipo SRE", deliverables: "Dashboard de observabilidad", benefit: "Plataforma estable y escalable" },
+    ],
+    risks: [
+      { id: uid(), description: "Proveedor de infraestructura con retrasos en aprovisionamiento", severity: "Alta", status: "En seguimiento", owner: "Marta Ruiz", mitigation: "Escalado semanal con el proveedor; plan B con infraestructura interna", createdAt: "2026-06-10" },
+    ],
+    updates: [
+      { id: uid(), date: "2026-06-25", author: "Marta Ruiz", advances: "3 de 6 servicios migrados. Pruebas de carga superadas en 2 de ellos.", statusChange: "Se mantiene en Ámbar por dependencia del proveedor", newRisks: "Ninguno nuevo esta semana", nextSteps: "Migrar servicio de facturación", decisions: "Ninguna pendiente" },
+    ],
+  },
+  {
+    id: uid(), name: "Multiorg", owner: "Carlos Peña",
+    stakeholders: "Operaciones, Finanzas",
+    objective: "Habilitar soporte multiempresa en la plataforma interna.",
+    currentStatus: "Diseño de modelo de datos multiempresa finalizado, inicio de desarrollo.",
+    semaphore: "green", priority: "Media",
+    startDate: "2026-04-01", endDate: "2026-12-15", nextReview: "2026-07-08",
+    summary: "Proyecto en fase temprana, avanzando según lo planificado sin bloqueos.",
+    archived: false, lastUpdateAt: "2026-06-27", sharedWith: "all",
+    phases: [
+      { id: uid(), name: "Modelo de datos", description: "Diseño del esquema multi-tenant", startDate: "2026-04-01", endDate: "2026-05-15", status: "Completada", owner: "Carlos Peña", deliverables: "Esquema de datos aprobado", benefit: "Base escalable para nuevas organizaciones" },
+      { id: uid(), name: "Desarrollo backend", description: "Implementación de aislamiento por organización", startDate: "2026-05-16", endDate: "2026-09-30", status: "En curso", owner: "Equipo Backend", deliverables: "API multi-tenant", benefit: "Soporte para múltiples empresas en una instancia" },
+    ],
+    risks: [],
+    updates: [
+      { id: uid(), date: "2026-06-27", author: "Carlos Peña", advances: "Esquema de datos validado con Finanzas.", statusChange: "Sin cambios, se mantiene en Verde", newRisks: "Ninguno", nextSteps: "Iniciar sprint de desarrollo backend", decisions: "Ninguna pendiente" },
+    ],
+  },
+  {
+    id: uid(), name: "WhatsApp en Salesforce Marketing Cloud", owner: "Lucía Fernández",
+    stakeholders: "Marketing, Atención al Cliente",
+    objective: "Integrar el canal de WhatsApp en SFMC para campañas y atención conversacional.",
+    currentStatus: "Bloqueado a la espera de aprobación del proveedor de la API de WhatsApp Business.",
+    semaphore: "red", priority: "Alta",
+    startDate: "2026-05-01", endDate: "2026-09-01", nextReview: "2026-07-07",
+    summary: "Proyecto bloqueado por aprobación externa; impacto directo en el lanzamiento de campañas de Q3.",
+    archived: false, lastUpdateAt: "2026-06-28", sharedWith: "all",
+    phases: [
+      { id: uid(), name: "Setup técnico SFMC", description: "Configuración del canal en SFMC", startDate: "2026-05-01", endDate: "2026-05-30", status: "Completada", owner: "Lucía Fernández", deliverables: "Entorno configurado", benefit: "Infraestructura lista para integración" },
+      { id: uid(), name: "Aprobación WhatsApp Business API", description: "Verificación de cuenta y plantillas", startDate: "2026-06-01", endDate: "2026-07-15", status: "Bloqueada", owner: "Lucía Fernández", deliverables: "Cuenta verificada", benefit: "Habilita el envío de mensajes a clientes" },
+    ],
+    risks: [
+      { id: uid(), description: "Aprobación de Meta para WhatsApp Business API retrasada indefinidamente", severity: "Crítica", status: "Abierto", owner: "Lucía Fernández", mitigation: "Escalado directo con partner de Meta; explorar proveedor alternativo (Twilio)", createdAt: "2026-06-20" },
+    ],
+    updates: [
+      { id: uid(), date: "2026-06-28", author: "Lucía Fernández", advances: "Sin avance en la aprobación esta semana.", statusChange: "Cambia a Rojo por bloqueo prolongado", newRisks: "Riesgo crítico: aprobación de Meta sin fecha estimada", nextSteps: "Explorar proveedor alternativo (Twilio) como plan B", decisions: "Se necesita decisión de Dirección sobre si activar plan B" },
+    ],
+  },
+];
+
+/* ---------------------------------------------------------------
+   STORAGE HOOKS
+   - useSheetApiUrl: dirección del Apps Script, guardada en localStorage
+     de este navegador (cada persona la pega una vez).
+   - useSheetCollection: lee/escribe una "tabla" en el Sheet vía fetch()
+     contra el Apps Script (funciona porque GitHub Pages no tiene las
+     restricciones de red de un artifact de Claude).
+   - useSession: quién ha iniciado sesión en este navegador.
+---------------------------------------------------------------- */
+async function sheetGet(apiUrl, key) {
+  const res = await fetch(`${apiUrl}?action=get&key=${encodeURIComponent(key)}`);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "Error al leer del Sheet");
+  return json.value ? JSON.parse(json.value) : null;
+}
+
+async function sheetSet(apiUrl, key, value) {
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS en Apps Script
+    body: JSON.stringify({ action: "set", key, value: JSON.stringify(value) }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "Error al guardar en el Sheet");
+  return true;
+}
+
+async function sheetTestConnection(apiUrl) {
+  const res = await fetch(`${apiUrl}?action=list&prefix=`);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "Respuesta inválida");
+  return true;
+}
+
+function useSheetApiUrl() {
+  const [url, setUrlState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sheet-api-url") || "null"); } catch { return null; }
+  });
+  const setUrl = useCallback((val) => {
+    setUrlState(val);
+    try { localStorage.setItem("sheet-api-url", JSON.stringify(val)); } catch { /* non-fatal */ }
+  }, []);
+  return { url, setUrl, loading: false };
+}
+
+function useSheetCollection(apiUrl, key, seed) {
+  const [data, setData] = useState(seed || []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!apiUrl) return;
+    (async () => {
+      setLoading(true);
+      try {
+        let value = await sheetGet(apiUrl, key);
+        if (!value) {
+          value = seed || [];
+          await sheetSet(apiUrl, key, value);
+        }
+        setData(value);
+        setError(null);
+      } catch (e) {
+        setError("No se pudo conectar con el Sheet (" + e.message + ").");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, apiUrl]);
+
+  const persist = useCallback(async (next) => {
+    setData(next);
+    if (!apiUrl) return;
+    setSaving(true);
+    try {
+      await sheetSet(apiUrl, key, next);
+      setError(null);
+    } catch (e) {
+      setError("No se pudo guardar en el Sheet (" + e.message + ").");
+    } finally {
+      setSaving(false);
+    }
+  }, [key, apiUrl]);
+
+  return { data, setData: persist, loading, error, saving };
+}
+
+function useSession() {
+  const [email, setEmailState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("session-email") || "null"); } catch { return null; }
+  });
+  const setEmail = useCallback((val) => {
+    setEmailState(val);
+    try { localStorage.setItem("session-email", JSON.stringify(val)); } catch { /* non-fatal */ }
+  }, []);
+  return { email, setEmail, loading: false };
+}
+
+/* ---------------------------------------------------------------
+   SMALL UI PRIMITIVES
+---------------------------------------------------------------- */
+const Pill = ({ children, color, soft }) => (
+  <span style={{ background: soft, color }} className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 whitespace-nowrap">
+    {children}
+  </span>
+);
+
+const SignalBar = ({ semaphore }) => {
+  const order = ["green", "amber", "red"];
+  return (
+    <div className="flex flex-col gap-0.5 h-8 w-1.5 rounded-full overflow-hidden">
+      {order.map((k) => (
+        <div key={k} className="flex-1" style={{ background: k === semaphore ? SEMAFORO[k].color : "#E4E5E1" }} />
+      ))}
+    </div>
+  );
+};
+
+const Field = ({ label, children, hint }) => (
+  <label className="block mb-4">
+    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: COLORS.textDim }}>{label}</span>
+    <div className="mt-1.5">{children}</div>
+    {hint && <span className="text-xs mt-1 block" style={{ color: COLORS.textDim }}>{hint}</span>}
+  </label>
+);
+
+const inputCls = "w-full px-3 py-2 rounded-lg border bg-white text-sm outline-none focus:ring-2 transition";
+const inputStyle = { borderColor: COLORS.line };
+
+function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-8 px-4" style={{ background: "rgba(20,24,31,0.55)" }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-full flex flex-col"
+        style={{ maxWidth: wide ? 720 : 560 }}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: COLORS.line }}>
+          <h3 className="font-semibold text-lg" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{title}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition" aria-label="Cerrar">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-5 overflow-y-auto" style={{ maxHeight: "75vh" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   CONNECT TO SHEET (Apps Script Web App URL)
+---------------------------------------------------------------- */
+function ConfigureSheet({ initialUrl, onSaved }) {
+  const [url, setUrl] = useState(initialUrl || "");
+  const [status, setStatus] = useState("idle"); // idle | testing | ok | error
+  const [errMsg, setErrMsg] = useState("");
+
+  const test = async () => {
+    setStatus("testing");
+    setErrMsg("");
+    try {
+      await sheetTestConnection(url.trim());
+      setStatus("ok");
+    } catch (e) {
+      setStatus("error");
+      setErrMsg(e.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+      <style>{FONT_IMPORT}</style>
+      <div className="w-full max-w-md bg-white rounded-2xl border p-7" style={{ borderColor: COLORS.line }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: COLORS.accent }}>
+          <FileText size={18} color="white" />
+        </div>
+        <h1 className="text-xl font-bold mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Conectar con Google Sheet</h1>
+        <p className="text-sm mb-5" style={{ color: COLORS.textDim }}>
+          Pega la URL de tu Apps Script Web App (termina en <code>/exec</code>). Todos los que usen esta app compartirán los mismos datos, guardados en tu Sheet.
+        </p>
+        <Field label="URL de la Web App">
+          <input
+            className={inputCls} style={inputStyle}
+            placeholder="https://script.google.com/macros/s/XXXXX/exec"
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); setStatus("idle"); }}
+          />
+        </Field>
+        {status === "ok" && (
+          <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-4" style={{ background: COLORS.greenSoft, color: COLORS.green }}>
+            <CheckCircle2 size={16} /> Conexión correcta.
+          </div>
+        )}
+        {status === "error" && (
+          <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-4" style={{ background: COLORS.redSoft, color: COLORS.red }}>
+            <AlertTriangle size={16} /> No se pudo conectar: {errMsg}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            disabled={!url.trim() || status === "testing"}
+            onClick={test}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold border transition"
+            style={{ borderColor: COLORS.line, color: status === "testing" ? COLORS.textDim : COLORS.ink }}
+          >
+            {status === "testing" ? "Probando…" : "Probar conexión"}
+          </button>
+          <button
+            disabled={status !== "ok"}
+            onClick={() => onSaved(url.trim())}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition"
+            style={{ background: status === "ok" ? COLORS.accent : "#C7C8E8" }}
+          >
+            Guardar y continuar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   AUTH: SETUP + SIGN IN (prototype-level, not real security)
+---------------------------------------------------------------- */
+function SetupAdmin({ onCreate }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const valid = name.trim() && validEmail(email);
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+      <style>{FONT_IMPORT}</style>
+      <div className="w-full max-w-sm bg-white rounded-2xl border p-7" style={{ borderColor: COLORS.line }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: COLORS.accent }}>
+          <Target size={18} color="white" />
+        </div>
+        <h1 className="text-xl font-bold mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Configura Trackr</h1>
+        <p className="text-sm mb-5" style={{ color: COLORS.textDim }}>Crea la cuenta de administrador. Podrás dar de alta al resto de usuarios después.</p>
+        <Field label="Tu nombre">
+          <input className={inputCls} style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre y apellidos" />
+        </Field>
+        <Field label="Tu correo">
+          <input className={inputCls} style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@empresa.com" />
+        </Field>
+        <button
+          disabled={!valid}
+          onClick={() => onCreate({ name: name.trim(), email: email.trim().toLowerCase() })}
+          style={{ background: valid ? COLORS.accent : "#C7C8E8" }}
+          className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition mt-2"
+        >
+          Crear cuenta de administrador
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SignIn({ users, onSignIn }) {
+  const active = users.filter((u) => u.active);
+  const [email, setEmail] = useState("");
+  const match = active.find((u) => u.email === email.trim().toLowerCase());
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+      <style>{FONT_IMPORT}</style>
+      <div className="w-full max-w-sm bg-white rounded-2xl border p-7" style={{ borderColor: COLORS.line }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: COLORS.accent }}>
+          <Lock size={18} color="white" />
+        </div>
+        <h1 className="text-xl font-bold mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Selecciona tu usuario</h1>
+        <p className="text-sm mb-5" style={{ color: COLORS.textDim }}>Este prototipo no valida contraseña: identifica tu correo registrado para entrar con tus permisos.</p>
+        <Field label="Correo">
+          <input className={inputCls} style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@empresa.com" />
+        </Field>
+        <button
+          disabled={!match}
+          onClick={() => onSignIn(match.email)}
+          style={{ background: match ? COLORS.accent : "#C7C8E8" }}
+          className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition mb-4"
+        >
+          Entrar
+        </button>
+        {active.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: COLORS.textDim }}>Usuarios dados de alta</p>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {active.map((u) => (
+                <button key={u.id} onClick={() => onSignIn(u.email)} className="w-full flex items-center justify-between text-left px-2.5 py-1.5 rounded-lg hover:bg-gray-50 text-sm">
+                  <span>{u.name} <span style={{ color: COLORS.textDim }}>· {u.role}</span></span>
+                  <ArrowRight size={13} color={COLORS.textDim} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   PROJECT FORM (create / edit)
+---------------------------------------------------------------- */
+function ProjectForm({ initial, onSave, onCancel }) {
+  const [f, setF] = useState(
+    initial || {
+      name: "", owner: "", stakeholders: "", objective: "", currentStatus: "",
+      semaphore: "green", priority: "Media", startDate: todayISO(), endDate: "",
+      nextReview: "", summary: "",
+    }
+  );
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const valid = f.name.trim() && f.owner.trim() && f.objective.trim() && f.startDate;
+
+  return (
+    <div>
+      <Field label="Nombre del proyecto">
+        <input className={inputCls} style={inputStyle} value={f.name} onChange={set("name")} placeholder="p. ej. Horizon" />
+      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Responsable">
+          <input className={inputCls} style={inputStyle} value={f.owner} onChange={set("owner")} placeholder="Nombre del Project Owner" />
+        </Field>
+        <Field label="Prioridad">
+          <select className={inputCls} style={inputStyle} value={f.priority} onChange={set("priority")}>
+            {PRIORIDADES.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </Field>
+      </div>
+      <Field label="Stakeholders">
+        <input className={inputCls} style={inputStyle} value={f.stakeholders} onChange={set("stakeholders")} placeholder="Áreas o personas separadas por coma" />
+      </Field>
+      <Field label="Objetivo del proyecto">
+        <textarea className={inputCls} style={inputStyle} rows={2} value={f.objective} onChange={set("objective")} />
+      </Field>
+      <Field label="Estado actual (narrativo)">
+        <textarea className={inputCls} style={inputStyle} rows={2} value={f.currentStatus} onChange={set("currentStatus")} />
+      </Field>
+      <Field label="Resumen ejecutivo" hint="Debe poder leerse en 30 segundos.">
+        <textarea className={inputCls} style={inputStyle} rows={2} value={f.summary} onChange={set("summary")} />
+      </Field>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Estado semafórico">
+          <select className={inputCls} style={inputStyle} value={f.semaphore} onChange={set("semaphore")}>
+            {Object.entries(SEMAFORO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Inicio">
+          <input type="date" className={inputCls} style={inputStyle} value={f.startDate} onChange={set("startDate")} />
+        </Field>
+        <Field label="Fin estimado">
+          <input type="date" className={inputCls} style={inputStyle} value={f.endDate} onChange={set("endDate")} />
+        </Field>
+      </div>
+      <Field label="Próxima revisión">
+        <input type="date" className={inputCls} style={inputStyle} value={f.nextReview} onChange={set("nextReview")} />
+      </Field>
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition">Cancelar</button>
+        <button
+          disabled={!valid}
+          onClick={() => onSave(f)}
+          style={{ background: valid ? COLORS.accent : "#C7C8E8" }}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-white transition"
+        >
+          {initial ? "Guardar cambios" : "Crear proyecto"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PhaseForm({ onSave, onCancel }) {
+  const [f, setF] = useState({ name: "", description: "", startDate: todayISO(), endDate: "", status: "Pendiente", owner: "", deliverables: "", benefit: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const valid = f.name.trim() && f.startDate;
+  return (
+    <div>
+      <Field label="Nombre de la fase"><input className={inputCls} style={inputStyle} value={f.name} onChange={set("name")} /></Field>
+      <Field label="Descripción"><textarea className={inputCls} style={inputStyle} rows={2} value={f.description} onChange={set("description")} /></Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Fecha inicio"><input type="date" className={inputCls} style={inputStyle} value={f.startDate} onChange={set("startDate")} /></Field>
+        <Field label="Fecha fin estimada"><input type="date" className={inputCls} style={inputStyle} value={f.endDate} onChange={set("endDate")} /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Estado">
+          <select className={inputCls} style={inputStyle} value={f.status} onChange={set("status")}>
+            {ESTADO_FASE.map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Responsable"><input className={inputCls} style={inputStyle} value={f.owner} onChange={set("owner")} /></Field>
+      </div>
+      <Field label="Entregables asociados"><input className={inputCls} style={inputStyle} value={f.deliverables} onChange={set("deliverables")} /></Field>
+      <Field label="Beneficio esperado"><textarea className={inputCls} style={inputStyle} rows={2} value={f.benefit} onChange={set("benefit")} /></Field>
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Cancelar</button>
+        <button disabled={!valid} onClick={() => onSave(f)} style={{ background: valid ? COLORS.accent : "#C7C8E8" }} className="px-4 py-2 rounded-lg text-sm font-medium text-white">Añadir fase</button>
+      </div>
+    </div>
+  );
+}
+
+function RiskForm({ onSave, onCancel }) {
+  const [f, setF] = useState({ description: "", severity: "Media", status: "Abierto", owner: "", mitigation: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const valid = f.description.trim();
+  return (
+    <div>
+      <Field label="Descripción del riesgo"><textarea className={inputCls} style={inputStyle} rows={2} value={f.description} onChange={set("description")} /></Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Severidad">
+          <select className={inputCls} style={inputStyle} value={f.severity} onChange={set("severity")}>
+            {Object.keys(SEVERIDAD).map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Estado">
+          <select className={inputCls} style={inputStyle} value={f.status} onChange={set("status")}>
+            {ESTADO_RIESGO.map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </Field>
+      </div>
+      <Field label="Responsable"><input className={inputCls} style={inputStyle} value={f.owner} onChange={set("owner")} /></Field>
+      <Field label="Acción de mitigación"><textarea className={inputCls} style={inputStyle} rows={2} value={f.mitigation} onChange={set("mitigation")} /></Field>
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Cancelar</button>
+        <button disabled={!valid} onClick={() => onSave(f)} style={{ background: valid ? COLORS.accent : "#C7C8E8" }} className="px-4 py-2 rounded-lg text-sm font-medium text-white">Registrar riesgo</button>
+      </div>
+    </div>
+  );
+}
+
+function UpdateForm({ project, onSave, onCancel }) {
+  const [f, setF] = useState({
+    date: todayISO(), author: project.owner || "", advances: "", statusChange: "",
+    newRisks: "", nextSteps: "", decisions: "", semaphore: project.semaphore,
+  });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const valid = f.advances.trim();
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Fecha"><input type="date" className={inputCls} style={inputStyle} value={f.date} onChange={set("date")} /></Field>
+        <Field label="Autor"><input className={inputCls} style={inputStyle} value={f.author} onChange={set("author")} /></Field>
+      </div>
+      <Field label="Semáforo esta semana">
+        <select className={inputCls} style={inputStyle} value={f.semaphore} onChange={set("semaphore")}>
+          {Object.entries(SEMAFORO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </Field>
+      <Field label="Avances de la semana"><textarea className={inputCls} style={inputStyle} rows={2} value={f.advances} onChange={set("advances")} /></Field>
+      <Field label="Cambios de estado"><textarea className={inputCls} style={inputStyle} rows={2} value={f.statusChange} onChange={set("statusChange")} /></Field>
+      <Field label="Nuevos riesgos o bloqueos"><textarea className={inputCls} style={inputStyle} rows={2} value={f.newRisks} onChange={set("newRisks")} /></Field>
+      <Field label="Próximos pasos"><textarea className={inputCls} style={inputStyle} rows={2} value={f.nextSteps} onChange={set("nextSteps")} /></Field>
+      <Field label="Decisiones necesarias"><textarea className={inputCls} style={inputStyle} rows={2} value={f.decisions} onChange={set("decisions")} /></Field>
+      {f.semaphore === "red" && (
+        <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg mb-4" style={{ background: COLORS.redSoft, color: COLORS.red }}>
+          <AlertTriangle size={16} /> Al guardar con semáforo Rojo se notificará a los usuarios con acceso a este proyecto.
+        </div>
+      )}
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Cancelar</button>
+        <button disabled={!valid} onClick={() => onSave(f)} style={{ background: valid ? COLORS.accent : "#C7C8E8" }} className="px-4 py-2 rounded-lg text-sm font-medium text-white">Guardar actualización</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   SHARE PANEL (admin decides visibility)
+---------------------------------------------------------------- */
+function SharePanel({ project, users, onChange }) {
+  const [email, setEmail] = useState("");
+  const isAll = project.sharedWith === "all";
+  const list = isAll ? [] : (project.sharedWith || []);
+  const candidates = users.filter((u) => u.active && u.email !== "");
+
+  const addShare = (targetEmail) => {
+    const e = targetEmail.trim().toLowerCase();
+    const registered = users.find((u) => u.email === e && u.active);
+    if (!registered) return;
+    if (isAll) return;
+    if (list.includes(e)) return;
+    onChange([...list, e], true);
+    setEmail("");
+  };
+  const removeShare = (e) => {
+    onChange(list.filter((x) => x !== e), false);
+  };
+
+  return (
+    <Section title="Compartir y visibilidad">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm">Visible para todos los usuarios</span>
+        <button
+          onClick={() => onChange(isAll ? [] : "all", false)}
+          className="text-xs font-semibold px-2.5 py-1 rounded-full"
+          style={{ background: isAll ? COLORS.greenSoft : "#F1F2F0", color: isAll ? COLORS.green : COLORS.textDim }}
+        >
+          {isAll ? "Activado" : "Desactivado"}
+        </button>
+      </div>
+      {!isAll && (
+        <>
+          <div className="flex gap-2 mb-3">
+            <input
+              list="user-emails"
+              className={inputCls} style={inputStyle}
+              placeholder="correo@empresa.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addShare(email)}
+            />
+            <datalist id="user-emails">
+              {candidates.map((u) => <option key={u.id} value={u.email} />)}
+            </datalist>
+            <button onClick={() => addShare(email)} className="px-3 py-2 rounded-lg text-sm font-medium text-white whitespace-nowrap" style={{ background: COLORS.accent }}>
+              Compartir
+            </button>
+          </div>
+          <p className="text-xs mb-2" style={{ color: COLORS.textDim }}>Solo puedes compartir con correos ya dados de alta como usuario.</p>
+          <div className="space-y-1.5">
+            {list.length === 0 && <p className="text-sm" style={{ color: COLORS.textDim }}>Nadie más tiene acceso todavía.</p>}
+            {list.map((e) => {
+              const u = users.find((x) => x.email === e);
+              return (
+                <div key={e} className="flex items-center justify-between text-sm px-2.5 py-1.5 rounded-lg" style={{ background: COLORS.paper }}>
+                  <span>{u ? u.name : e} <span style={{ color: COLORS.textDim }}>· {e}</span></span>
+                  <button onClick={() => removeShare(e)} className="p-1 rounded hover:bg-gray-200"><Trash2 size={13} color={COLORS.textDim} /></button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
+/* ---------------------------------------------------------------
+   DASHBOARD
+---------------------------------------------------------------- */
+function Dashboard({ projects, onOpen, onNew, canCreate }) {
+  const active = projects.filter((p) => !p.archived);
+  const counts = { green: 0, amber: 0, red: 0 };
+  active.forEach((p) => counts[p.semaphore]++);
+  const criticalRisk = active.filter((p) => p.risks.some((r) => r.severity === "Crítica" && r.status !== "Cerrado" && r.status !== "Mitigado"));
+  const staleProjects = active.filter((p) => {
+    const d = daysSince(p.lastUpdateAt);
+    return d === null || d > 7;
+  });
+
+  const upcomingMilestones = active
+    .flatMap((p) => p.phases.filter((ph) => ph.status !== "Completada" && ph.endDate).map((ph) => ({ ...ph, project: p.name, projectId: p.id })))
+    .sort((a, b) => new Date(a.endDate) - new Date(b.endDate))
+    .slice(0, 6);
+
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const filtered = active.filter((p) => {
+    if (filter !== "all" && filter !== "stale" && filter !== "critical" && p.semaphore !== filter) return false;
+    if (filter === "stale" && !staleProjects.includes(p)) return false;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const kpiCard = (label, value, color, icon, key) => (
+    <button
+      onClick={() => setFilter(filter === key ? "all" : key)}
+      className="text-left rounded-2xl p-5 border transition hover:shadow-md flex-1 min-w-[150px]"
+      style={{ borderColor: filter === key ? color : COLORS.line, background: COLORS.paperCard, boxShadow: filter === key ? `0 0 0 2px ${color}22` : "none" }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: COLORS.textDim }}>{label}</span>
+        <div className="p-1.5 rounded-lg" style={{ background: color + "1A" }}>{icon}</div>
+      </div>
+      <div className="text-3xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif", color: COLORS.ink }}>{value}</div>
+    </button>
+  );
+
+  const rows = filter === "critical" ? criticalRisk : filtered;
+
+  return (
+    <div>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dashboard ejecutivo</h1>
+          <p className="text-sm mt-1" style={{ color: COLORS.textDim }}>Visión consolidada de los proyectos a los que tienes acceso.</p>
+        </div>
+        {canCreate && (
+          <button onClick={onNew} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90" style={{ background: COLORS.accent }}>
+            <Plus size={16} /> Nuevo proyecto
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-6">
+        {kpiCard("Proyectos activos", active.length, COLORS.accent, <FolderKanban size={16} color={COLORS.accent} />, "all")}
+        {kpiCard("En verde", counts.green, COLORS.green, <CheckCircle2 size={16} color={COLORS.green} />, "green")}
+        {kpiCard("En ámbar", counts.amber, COLORS.amber, <AlertTriangle size={16} color={COLORS.amber} />, "amber")}
+        {kpiCard("En rojo", counts.red, COLORS.red, <AlertTriangle size={16} color={COLORS.red} />, "red")}
+        {kpiCard("Riesgo crítico", criticalRisk.length, COLORS.red, <ShieldAlert size={16} color={COLORS.red} />, "critical")}
+        {kpiCard("Sin actualizar", staleProjects.length, COLORS.textDim, <Clock size={16} color={COLORS.textDim} />, "stale")}
+      </div>
+
+      <div className="grid grid-cols-3 gap-5 mb-6">
+        <div className="col-span-2 rounded-2xl border p-5" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold flex items-center gap-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}><FolderKanban size={16} /> Proyectos</h2>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm" style={{ borderColor: COLORS.line }}>
+                <Search size={14} color={COLORS.textDim} />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar…" className="outline-none text-sm w-28" />
+              </div>
+              {filter !== "all" && (
+                <button onClick={() => setFilter("all")} className="text-xs font-medium px-2 py-1 rounded-lg" style={{ background: COLORS.accentSoft, color: COLORS.accent }}>
+                  Quitar filtro ✕
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: COLORS.line }}>
+            {rows.length === 0 && <p className="text-sm py-6 text-center" style={{ color: COLORS.textDim }}>No hay proyectos que coincidan.</p>}
+            {rows.map((p) => {
+              const d = daysSince(p.lastUpdateAt);
+              return (
+                <button key={p.id} onClick={() => onOpen(p.id)} className="w-full flex items-center gap-4 py-3.5 text-left hover:bg-gray-50 transition rounded-lg px-2 -mx-2">
+                  <SignalBar semaphore={p.semaphore} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{p.name}</div>
+                    <div className="text-xs truncate" style={{ color: COLORS.textDim }}>{p.owner} · {p.priority}</div>
+                  </div>
+                  {d !== null && d > 7 && (
+                    <Pill color={COLORS.textDim} soft="#EEEEEC"><Clock size={11} /> {d}d sin actualizar</Pill>
+                  )}
+                  <span className="text-xs w-24 text-right" style={{ color: COLORS.textDim }}>Rev. {fmtDate(p.nextReview)}</span>
+                  <ChevronRight size={16} color={COLORS.textDim} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-5" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+          <h2 className="font-semibold flex items-center gap-2 mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}><Milestone size={16} /> Próximos hitos</h2>
+          <div className="space-y-3">
+            {upcomingMilestones.length === 0 && <p className="text-sm" style={{ color: COLORS.textDim }}>Sin hitos próximos.</p>}
+            {upcomingMilestones.map((m) => (
+              <button key={m.id} onClick={() => onOpen(m.projectId)} className="w-full text-left block hover:bg-gray-50 rounded-lg p-2 -mx-2 transition">
+                <div className="text-sm font-medium truncate">{m.name}</div>
+                <div className="text-xs flex items-center gap-1.5 mt-0.5" style={{ color: COLORS.textDim }}>
+                  <span>{m.project}</span><span>·</span><Calendar size={11} /><span>{fmtDate(m.endDate)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   PROJECT DETAIL
+---------------------------------------------------------------- */
+function ProjectDetail({ project, onBack, onUpdate, onShare, onArchive, canEdit, isAdmin, users }) {
+  const [tab, setTab] = useState("resumen");
+  const [showEdit, setShowEdit] = useState(false);
+  const [showPhase, setShowPhase] = useState(false);
+  const [showRisk, setShowRisk] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+
+  const tabs = [
+    { id: "resumen", label: "Resumen", icon: <FileText size={14} /> },
+    { id: "cronograma", label: "Cronograma", icon: <Milestone size={14} /> },
+    { id: "riesgos", label: "Riesgos", icon: <ShieldAlert size={14} /> },
+    { id: "actualizaciones", label: "Actualizaciones", icon: <History size={14} /> },
+  ];
+  if (isAdmin) tabs.push({ id: "compartir", label: "Compartir", icon: <Share2 size={14} /> });
+
+  const sem = SEMAFORO[project.semaphore];
+
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium mb-4 hover:opacity-70" style={{ color: COLORS.textDim }}>
+        <ChevronLeft size={16} /> Volver al dashboard
+      </button>
+
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex items-start gap-4">
+          <SignalBar semaphore={project.semaphore} />
+          <div>
+            <h1 className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{project.name}</h1>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <Pill color={sem.color} soft={sem.soft}>{sem.label}</Pill>
+              <Pill color={COLORS.accent} soft={COLORS.accentSoft}>{project.priority}</Pill>
+              <span className="text-xs flex items-center gap-1" style={{ color: COLORS.textDim }}><User size={12} /> {project.owner}</span>
+              <span className="text-xs flex items-center gap-1" style={{ color: COLORS.textDim }}><Users size={12} /> {project.stakeholders || "—"}</span>
+            </div>
+          </div>
+        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border hover:bg-gray-50" style={{ borderColor: COLORS.line }}>
+              <Pencil size={14} /> Editar
+            </button>
+            {isAdmin && (
+              <button onClick={onArchive} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border hover:bg-gray-50" style={{ borderColor: COLORS.line, color: COLORS.textDim }}>
+                <Archive size={14} /> Archivar
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-1 mb-5 border-b" style={{ borderColor: COLORS.line }}>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition"
+            style={{ borderColor: tab === t.id ? COLORS.accent : "transparent", color: tab === t.id ? COLORS.accent : COLORS.textDim }}
+          >
+            {t.icon} {t.label}
+            {t.id === "riesgos" && project.risks.length > 0 && (
+              <span className="text-xs rounded-full px-1.5" style={{ background: COLORS.redSoft, color: COLORS.red }}>{project.risks.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "resumen" && (
+        <div className="grid grid-cols-3 gap-5">
+          <div className="col-span-2 space-y-4">
+            <Section title="Resumen ejecutivo"><p className="text-sm leading-relaxed">{project.summary || "—"}</p></Section>
+            <Section title="Objetivo del proyecto"><p className="text-sm leading-relaxed">{project.objective}</p></Section>
+            <Section title="Estado actual"><p className="text-sm leading-relaxed">{project.currentStatus || "—"}</p></Section>
+          </div>
+          <div className="space-y-4">
+            <Section title="Fechas">
+              <InfoRow label="Inicio" value={fmtDate(project.startDate)} />
+              <InfoRow label="Fin estimado" value={fmtDate(project.endDate)} />
+              <InfoRow label="Próxima revisión" value={fmtDate(project.nextReview)} />
+              <InfoRow label="Última actualización" value={fmtDate(project.lastUpdateAt)} />
+            </Section>
+            <Section title="Visibilidad">
+              <p className="text-sm">{project.sharedWith === "all" ? "Visible para todos los usuarios" : `Compartido con ${(project.sharedWith || []).length} usuario(s)`}</p>
+            </Section>
+          </div>
+        </div>
+      )}
+
+      {tab === "cronograma" && (
+        <div>
+          {canEdit && (
+            <button onClick={() => setShowPhase(true)} className="flex items-center gap-1.5 mb-4 px-3 py-2 rounded-lg text-sm font-medium text-white" style={{ background: COLORS.accent }}>
+              <Plus size={14} /> Añadir fase
+            </button>
+          )}
+          <div className="space-y-3">
+            {project.phases.length === 0 && <EmptyState text="Sin fases definidas todavía." />}
+            {project.phases.map((ph, i) => (
+              <div key={ph.id} className="rounded-2xl border p-4 flex gap-4" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+                <div className="flex flex-col items-center pt-1">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: ph.status === "Completada" ? COLORS.green : ph.status === "Bloqueada" ? COLORS.red : COLORS.accent }} />
+                  {i < project.phases.length - 1 && <div className="w-px flex-1 mt-1" style={{ background: COLORS.line }} />}
+                </div>
+                <div className="flex-1 pb-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{ph.name}</span>
+                    <Pill color={ph.status === "Completada" ? COLORS.green : ph.status === "Bloqueada" ? COLORS.red : COLORS.accent} soft={ph.status === "Completada" ? COLORS.greenSoft : ph.status === "Bloqueada" ? COLORS.redSoft : COLORS.accentSoft}>{ph.status}</Pill>
+                  </div>
+                  <p className="text-sm mt-1" style={{ color: COLORS.textDim }}>{ph.description}</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mt-2" style={{ color: COLORS.textDim }}>
+                    <span className="flex items-center gap-1"><Calendar size={11} /> {fmtDate(ph.startDate)} → {fmtDate(ph.endDate)}</span>
+                    <span className="flex items-center gap-1"><User size={11} /> {ph.owner || "—"}</span>
+                  </div>
+                  {ph.deliverables && <p className="text-xs mt-1.5"><b>Entregables:</b> {ph.deliverables}</p>}
+                  {ph.benefit && <p className="text-xs mt-0.5"><b>Beneficio:</b> {ph.benefit}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "riesgos" && (
+        <div>
+          {canEdit && (
+            <button onClick={() => setShowRisk(true)} className="flex items-center gap-1.5 mb-4 px-3 py-2 rounded-lg text-sm font-medium text-white" style={{ background: COLORS.accent }}>
+              <Plus size={14} /> Registrar riesgo
+            </button>
+          )}
+          <div className="space-y-3">
+            {project.risks.length === 0 && <EmptyState text="Sin riesgos registrados." />}
+            {project.risks.map((r) => {
+              const sv = SEVERIDAD[r.severity];
+              return (
+                <div key={r.id} className="rounded-2xl border p-4" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex gap-2">
+                      <Pill color={sv.color} soft={sv.soft}>{r.severity}</Pill>
+                      <Pill color={COLORS.textDim} soft="#F1F2F0">{r.status}</Pill>
+                    </div>
+                    <span className="text-xs" style={{ color: COLORS.textDim }}>{fmtDate(r.createdAt)}</span>
+                  </div>
+                  <p className="text-sm">{r.description}</p>
+                  {r.mitigation && <p className="text-xs mt-2" style={{ color: COLORS.textDim }}><b>Mitigación:</b> {r.mitigation}</p>}
+                  {r.owner && <p className="text-xs mt-1" style={{ color: COLORS.textDim }}><b>Responsable:</b> {r.owner}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab === "actualizaciones" && (
+        <div>
+          {canEdit && (
+            <button onClick={() => setShowUpdateForm(true)} className="flex items-center gap-1.5 mb-4 px-3 py-2 rounded-lg text-sm font-medium text-white" style={{ background: COLORS.accent }}>
+              <Plus size={14} /> Nueva actualización semanal
+            </button>
+          )}
+          <div className="space-y-3">
+            {project.updates.length === 0 && <EmptyState text="Sin actualizaciones registradas todavía." />}
+            {[...project.updates].reverse().map((u) => (
+              <div key={u.id} className="rounded-2xl border p-4" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">{fmtDate(u.date)}</span>
+                  <span className="text-xs" style={{ color: COLORS.textDim }}>{u.author}</span>
+                </div>
+                <UpdateRow label="Avances" value={u.advances} />
+                <UpdateRow label="Cambios de estado" value={u.statusChange} />
+                <UpdateRow label="Nuevos riesgos" value={u.newRisks} />
+                <UpdateRow label="Próximos pasos" value={u.nextSteps} />
+                <UpdateRow label="Decisiones necesarias" value={u.decisions} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "compartir" && isAdmin && (
+        <div className="max-w-lg">
+          <SharePanel
+            project={project}
+            users={users}
+            onChange={(newSharedWith, notify) => {
+              onShare({ ...project, sharedWith: newSharedWith }, notify);
+            }}
+          />
+        </div>
+      )}
+
+      {showEdit && (
+        <Modal title="Editar proyecto" onClose={() => setShowEdit(false)} wide>
+          <ProjectForm initial={project} onCancel={() => setShowEdit(false)} onSave={(f) => { onUpdate({ ...project, ...f }); setShowEdit(false); }} />
+        </Modal>
+      )}
+      {showPhase && (
+        <Modal title="Añadir fase" onClose={() => setShowPhase(false)} wide>
+          <PhaseForm onCancel={() => setShowPhase(false)} onSave={(f) => { onUpdate({ ...project, phases: [...project.phases, { ...f, id: uid() }] }); setShowPhase(false); }} />
+        </Modal>
+      )}
+      {showRisk && (
+        <Modal title="Registrar riesgo" onClose={() => setShowRisk(false)}>
+          <RiskForm onCancel={() => setShowRisk(false)} onSave={(f) => { onUpdate({ ...project, risks: [...project.risks, { ...f, id: uid(), createdAt: todayISO() }] }); setShowRisk(false); }} />
+        </Modal>
+      )}
+      {showUpdateForm && (
+        <Modal title="Nueva actualización semanal" onClose={() => setShowUpdateForm(false)} wide>
+          <UpdateForm
+            project={project}
+            onCancel={() => setShowUpdateForm(false)}
+            onSave={(f) => {
+              onUpdate({
+                ...project,
+                updates: [...project.updates, { ...f, id: uid() }],
+                semaphore: f.semaphore,
+                lastUpdateAt: f.date,
+              }, f.semaphore === "red");
+              setShowUpdateForm(false);
+            }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+const Section = ({ title, children }) => (
+  <div className="rounded-2xl border p-4" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+    <h3 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: COLORS.textDim }}>{title}</h3>
+    {children}
+  </div>
+);
+const InfoRow = ({ label, value }) => (
+  <div className="flex items-center justify-between py-1.5 text-sm border-b last:border-0" style={{ borderColor: COLORS.line }}>
+    <span style={{ color: COLORS.textDim }}>{label}</span><span className="font-medium">{value}</span>
+  </div>
+);
+const UpdateRow = ({ label, value }) => !value ? null : (
+  <p className="text-sm mt-1.5"><span className="font-medium">{label}:</span> {value}</p>
+);
+const EmptyState = ({ text }) => (
+  <div className="rounded-2xl border border-dashed p-8 text-center text-sm" style={{ borderColor: COLORS.line, color: COLORS.textDim }}>{text}</div>
+);
+
+/* ---------------------------------------------------------------
+   USERS MANAGEMENT (admin only)
+---------------------------------------------------------------- */
+function UsersPage({ users, onChange, currentEmail }) {
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const addUser = (u) => {
+    if (users.some((x) => x.email === u.email)) return;
+    onChange([...users, { ...u, id: uid(), active: true, createdAt: todayISO() }]);
+    setShowNew(false);
+  };
+  const saveEdit = (u) => {
+    onChange(users.map((x) => (x.id === editing.id ? { ...x, ...u } : x)));
+    setEditing(null);
+  };
+  const toggleActive = (id) => {
+    onChange(users.map((x) => (x.id === id ? { ...x, active: !x.active } : x)));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Usuarios</h1>
+          <p className="text-sm mt-1" style={{ color: COLORS.textDim }}>Da de alta a las personas que pueden acceder y decide qué ven.</p>
+        </div>
+        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: COLORS.accent }}>
+          <Plus size={16} /> Nuevo usuario
+        </button>
+      </div>
+
+      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left border-b" style={{ borderColor: COLORS.line, color: COLORS.textDim }}>
+              <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">Correo</th>
+              <th className="px-4 py-3 font-medium">Rol</th>
+              <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b last:border-0" style={{ borderColor: COLORS.line }}>
+                <td className="px-4 py-3 font-medium">{u.name} {u.email === currentEmail && <span className="text-xs font-normal" style={{ color: COLORS.textDim }}>(tú)</span>}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.textDim }}>{u.email}</td>
+                <td className="px-4 py-3"><Pill color={COLORS.accent} soft={COLORS.accentSoft}>{u.role}</Pill></td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => u.email !== currentEmail && toggleActive(u.id)}
+                    disabled={u.email === currentEmail}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                    style={{ background: u.active ? COLORS.greenSoft : "#F1F2F0", color: u.active ? COLORS.green : COLORS.textDim, opacity: u.email === currentEmail ? 0.6 : 1 }}
+                  >
+                    {u.active ? "Activo" : "Inactivo"}
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button onClick={() => setEditing(u)} className="p-1.5 rounded-lg hover:bg-gray-100"><Pencil size={14} color={COLORS.textDim} /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showNew && (
+        <Modal title="Nuevo usuario" onClose={() => setShowNew(false)}>
+          <UserForm onCancel={() => setShowNew(false)} onSave={addUser} existing={users} />
+        </Modal>
+      )}
+      {editing && (
+        <Modal title="Editar usuario" onClose={() => setEditing(null)}>
+          <UserForm initial={editing} onCancel={() => setEditing(null)} onSave={saveEdit} existing={users} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function UserForm({ initial, onSave, onCancel, existing }) {
+  const [f, setF] = useState(initial || { name: "", email: "", role: "Stakeholder" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const emailTaken = !initial && existing.some((u) => u.email === f.email.trim().toLowerCase());
+  const valid = f.name.trim() && validEmail(f.email) && !emailTaken;
+  return (
+    <div>
+      <Field label="Nombre">
+        <input className={inputCls} style={inputStyle} value={f.name} onChange={set("name")} />
+      </Field>
+      <Field label="Correo" hint={emailTaken ? "Ya existe un usuario con este correo." : "Con este correo entrará a la aplicación."}>
+        <input className={inputCls} style={inputStyle} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value.toLowerCase() })} disabled={!!initial} />
+      </Field>
+      <Field label="Rol">
+        <select className={inputCls} style={inputStyle} value={f.role} onChange={set("role")}>
+          {ROLES.map((r) => <option key={r}>{r}</option>)}
+        </select>
+      </Field>
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Cancelar</button>
+        <button disabled={!valid} onClick={() => onSave({ ...f, name: f.name.trim(), email: f.email.trim().toLowerCase() })} style={{ background: valid ? COLORS.accent : "#C7C8E8" }} className="px-4 py-2 rounded-lg text-sm font-medium text-white">
+          {initial ? "Guardar cambios" : "Dar de alta"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   NOTIFICATIONS BELL
+---------------------------------------------------------------- */
+function NotificationsBell({ notifications, currentEmail, onOpenProject, onMarkRead }) {
+  const [open, setOpen] = useState(false);
+  const mine = notifications.filter((n) => n.toEmail === currentEmail).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const unread = mine.filter((n) => !n.read).length;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} className="relative p-2 rounded-lg hover:bg-gray-100 transition">
+        <Bell size={18} color={COLORS.ink} />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style={{ background: COLORS.red }}>{unread}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border shadow-xl z-40 overflow-hidden" style={{ borderColor: COLORS.line }}>
+            <div className="px-4 py-3 border-b font-semibold text-sm" style={{ borderColor: COLORS.line }}>Notificaciones</div>
+            <div className="max-h-80 overflow-y-auto">
+              {mine.length === 0 && <p className="text-sm p-4" style={{ color: COLORS.textDim }}>Sin notificaciones.</p>}
+              {mine.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => { onMarkRead(n.id); onOpenProject(n.projectId); setOpen(false); }}
+                  className="w-full text-left px-4 py-3 border-b last:border-0 hover:bg-gray-50 transition"
+                  style={{ borderColor: COLORS.line, background: n.read ? "white" : COLORS.accentSoft }}
+                >
+                  <p className="text-sm">{n.message}</p>
+                  <span className="text-xs" style={{ color: COLORS.textDim }}>{fmtDateTime(n.date)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   PROJECTS LIST
+---------------------------------------------------------------- */
+function ProjectsList({ projects, onOpen, onNew, canCreate }) {
+  const [showArchived, setShowArchived] = useState(false);
+  const list = projects.filter((p) => (showArchived ? p.archived : !p.archived));
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Proyectos</h1>
+          <p className="text-sm mt-1" style={{ color: COLORS.textDim }}>{list.length} proyecto{list.length !== 1 ? "s" : ""} {showArchived ? "archivados" : "activos"}</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setShowArchived(!showArchived)} className="px-3 py-2 rounded-lg text-sm font-medium border hover:bg-gray-50" style={{ borderColor: COLORS.line }}>
+            {showArchived ? "Ver activos" : "Ver archivados"}
+          </button>
+          {canCreate && (
+            <button onClick={onNew} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: COLORS.accent }}>
+              <Plus size={16} /> Nuevo proyecto
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {list.length === 0 && <EmptyState text="No hay proyectos aquí." />}
+        {list.map((p) => {
+          const sem = SEMAFORO[p.semaphore];
+          return (
+            <button key={p.id} onClick={() => onOpen(p.id)} className="text-left rounded-2xl border p-5 hover:shadow-md transition" style={{ borderColor: COLORS.line, background: COLORS.paperCard }}>
+              <div className="flex items-start gap-3">
+                <SignalBar semaphore={p.semaphore} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{p.name}</div>
+                  <p className="text-xs mt-1 line-clamp-2" style={{ color: COLORS.textDim }}>{p.summary || p.objective}</p>
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <Pill color={sem.color} soft={sem.soft}>{sem.label}</Pill>
+                    <Pill color={COLORS.accent} soft={COLORS.accentSoft}>{p.priority}</Pill>
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   APP SHELL
+---------------------------------------------------------------- */
+function App() {
+  const { url: apiUrl, setUrl: setApiUrl, loading: loadingUrl } = useSheetApiUrl();
+
+  if (loadingUrl) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.paper }}>
+        <Loader2 className="animate-spin" size={24} color={COLORS.accent} />
+      </div>
+    );
+  }
+
+  if (!apiUrl) {
+    return <ConfigureSheet onSaved={setApiUrl} />;
+  }
+
+  return <ConnectedApp apiUrl={apiUrl} onChangeUrl={() => setApiUrl(null)} />;
+}
+
+function ConnectedApp({ apiUrl, onChangeUrl }) {
+  const { data: allProjects, setData: persistProjects, loading: loadingProjects, error: projectsError, saving } = useSheetCollection(apiUrl, "projects-data", SEED_PROJECTS);
+  const { data: users, setData: persistUsers, loading: loadingUsers, error: usersError } = useSheetCollection(apiUrl, "users-data", []);
+  const { data: notifications, setData: persistNotifications, error: notifError } = useSheetCollection(apiUrl, "notifications-data", []);
+  const { email: sessionEmail, setEmail: setSessionEmail } = useSession();
+
+  const [view, setView] = useState("dashboard");
+  const [openId, setOpenId] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+
+  const loading = loadingProjects || loadingUsers;
+  const connError = projectsError || usersError || notifError;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: COLORS.paper }}>
+        <Loader2 className="animate-spin" size={24} color={COLORS.accent} />
+      </div>
+    );
+  }
+
+  if (connError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: COLORS.paper }}>
+        <div className="max-w-sm text-center">
+          <AlertTriangle size={28} color={COLORS.red} className="mx-auto mb-3" />
+          <p className="text-sm mb-4" style={{ color: COLORS.textDim }}>{connError}</p>
+          <button onClick={onChangeUrl} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: COLORS.accent }}>
+            Revisar conexión al Sheet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <SetupAdmin
+        onCreate={async ({ name, email }) => {
+          const admin = { id: uid(), name, email, role: "Admin", active: true, createdAt: todayISO() };
+          await persistUsers([admin]);
+          setSessionEmail(email);
+        }}
+      />
+    );
+  }
+
+  const currentUser = users.find((u) => u.email === sessionEmail && u.active);
+  if (!currentUser) {
+    return <SignIn users={users} onSignIn={setSessionEmail} />;
+  }
+
+  const isAdmin = currentUser.role === "Admin";
+  const canEditRole = currentUser.role === "Admin" || currentUser.role === "Project Owner";
+
+  const visibleProjects = allProjects.filter((p) => {
+    if (isAdmin) return true;
+    if (p.sharedWith === "all") return true;
+    return Array.isArray(p.sharedWith) && p.sharedWith.includes(currentUser.email);
+  });
+
+  const notify = (toEmail, message, projectId) => {
+    if (toEmail === currentUser.email) return null;
+    return { id: uid(), toEmail, message, projectId, date: new Date().toISOString(), read: false };
+  };
+
+  const updateProject = (updated, alsoNotify) => {
+    persistProjects(allProjects.map((p) => (p.id === updated.id ? updated : p)));
+    if (alsoNotify) {
+      const targets = updated.sharedWith === "all"
+        ? users.filter((u) => u.active).map((u) => u.email)
+        : (updated.sharedWith || []);
+      const newNotifs = targets
+        .map((e) => notify(e, `${updated.name}: nueva actualización — el proyecto ha cambiado a ${SEMAFORO[updated.semaphore].label}.`, updated.id))
+        .filter(Boolean);
+      if (newNotifs.length) persistNotifications([...notifications, ...newNotifs]);
+    }
+  };
+
+  const shareProject = (updated, wasShared) => {
+    persistProjects(allProjects.map((p) => (p.id === updated.id ? updated : p)));
+    if (wasShared) {
+      const prev = allProjects.find((p) => p.id === updated.id);
+      const prevList = Array.isArray(prev.sharedWith) ? prev.sharedWith : [];
+      const newList = Array.isArray(updated.sharedWith) ? updated.sharedWith : [];
+      const newlyAdded = newList.filter((e) => !prevList.includes(e));
+      const newNotifs = newlyAdded
+        .map((e) => notify(e, `${currentUser.name} te ha dado acceso al proyecto "${updated.name}".`, updated.id))
+        .filter(Boolean);
+      if (newNotifs.length) persistNotifications([...notifications, ...newNotifs]);
+    }
+  };
+
+  const archiveProject = (id) => {
+    persistProjects(allProjects.map((p) => (p.id === id ? { ...p, archived: true } : p)));
+    setOpenId(null);
+  };
+  const createProject = (f) => {
+    const np = { ...f, id: uid(), archived: false, phases: [], risks: [], updates: [], lastUpdateAt: null, sharedWith: isAdmin ? [] : "all" };
+    persistProjects([...allProjects, np]);
+    setShowNew(false);
+  };
+
+  const openProject = visibleProjects.find((p) => p.id === openId);
+  const goToProject = (id) => { if (visibleProjects.some((p) => p.id === id)) setOpenId(id); };
+
+  return (
+    <div className="min-h-screen" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif", color: COLORS.ink }}>
+      <style>{FONT_IMPORT}</style>
+      <div className="flex">
+        <div className="w-56 min-h-screen flex flex-col shrink-0" style={{ background: COLORS.ink }}>
+          <div className="px-5 py-5 flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: COLORS.accent }}>
+              <Target size={15} color="white" />
+            </div>
+            <span className="text-white font-semibold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Trackr</span>
+          </div>
+          <nav className="px-3 mt-2 space-y-1">
+            <button onClick={() => { setView("dashboard"); setOpenId(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition" style={{ background: view === "dashboard" && !openId ? COLORS.inkSoft : "transparent", color: view === "dashboard" && !openId ? "white" : "#9CA3AF" }}>
+              <LayoutDashboard size={16} /> Dashboard
+            </button>
+            <button onClick={() => { setView("projects"); setOpenId(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition" style={{ background: view === "projects" && !openId ? COLORS.inkSoft : "transparent", color: view === "projects" && !openId ? "white" : "#9CA3AF" }}>
+              <FolderKanban size={16} /> Proyectos
+            </button>
+            {isAdmin && (
+              <button onClick={() => { setView("users"); setOpenId(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition" style={{ background: view === "users" && !openId ? COLORS.inkSoft : "transparent", color: view === "users" && !openId ? "white" : "#9CA3AF" }}>
+                <ShieldCheck size={16} /> Usuarios
+              </button>
+            )}
+            {isAdmin && (
+              <button onClick={onChangeUrl} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition" style={{ color: "#9CA3AF" }}>
+                <FileText size={16} /> Conexión al Sheet
+              </button>
+            )}
+          </nav>
+          <div className="mt-auto px-4 py-4 border-t" style={{ borderColor: "#2A303C" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0" style={{ background: COLORS.accent }}>
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white truncate">{currentUser.name}</p>
+                <p className="text-xs truncate" style={{ color: "#6B7280" }}>{currentUser.role}</p>
+              </div>
+            </div>
+            <button onClick={() => setSessionEmail(null)} className="w-full flex items-center gap-1.5 text-xs mt-2 px-2.5 py-1.5 rounded-lg hover:bg-white/5" style={{ color: "#9CA3AF" }}>
+              <LogOut size={12} /> Cambiar de usuario
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 px-8 py-7 max-w-6xl">
+          <div className="flex justify-end mb-2">
+            <NotificationsBell
+              notifications={notifications}
+              currentEmail={currentUser.email}
+              onOpenProject={goToProject}
+              onMarkRead={(id) => persistNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)))}
+            />
+          </div>
+
+          {openProject ? (
+            <ProjectDetail
+              project={openProject}
+              onBack={() => setOpenId(null)}
+              onUpdate={updateProject}
+              onShare={shareProject}
+              onArchive={() => archiveProject(openProject.id)}
+              canEdit={canEditRole}
+              isAdmin={isAdmin}
+              users={users}
+            />
+          ) : view === "users" && isAdmin ? (
+            <UsersPage users={users} onChange={persistUsers} currentEmail={currentUser.email} />
+          ) : view === "dashboard" ? (
+            <Dashboard projects={visibleProjects} onOpen={setOpenId} onNew={() => setShowNew(true)} canCreate={isAdmin} />
+          ) : (
+            <ProjectsList projects={visibleProjects} onOpen={setOpenId} onNew={() => setShowNew(true)} canCreate={isAdmin} />
+          )}
+        </div>
+      </div>
+
+      {showNew && (
+        <Modal title="Nuevo proyecto" onClose={() => setShowNew(false)} wide>
+          <ProjectForm onCancel={() => setShowNew(false)} onSave={createProject} />
+        </Modal>
+      )}
+
+      {saving && (
+        <div className="fixed bottom-4 right-4 flex items-center gap-2 text-xs px-3 py-2 rounded-lg shadow-lg text-white" style={{ background: COLORS.ink }}>
+          <Loader2 className="animate-spin" size={12} /> Guardando en el Sheet…
+        </div>
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+
+  <script>
+    (function () {
+      try {
+        var src = document.getElementById("app-source").textContent;
+        var out = Babel.transform(src, { presets: [["react", { runtime: "classic" }]] }).code;
+        var s = document.createElement("script");
+        s.textContent = out;
+        document.body.appendChild(s);
+      } catch (err) {
+        document.getElementById("root").innerHTML =
+          '<div style="font-family:sans-serif;max-width:640px;margin:60px auto;padding:20px;border:1px solid #eee;border-radius:12px;">' +
+          '<h2 style="color:#D8483F;">Error al cargar Trackr</h2>' +
+          '<p>' + (err && err.message ? err.message : err) + '</p>' +
+          '<p style="color:#666;font-size:13px;">Copia este mensaje y compártelo para poder solucionarlo.</p>' +
+          "</div>";
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>
